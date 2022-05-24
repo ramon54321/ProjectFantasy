@@ -3,9 +3,9 @@
     <span><img src="https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/Rust_programming_language_black_logo.svg/1920px-Rust_programming_language_black_logo.svg.png" width="100"></span>
 </div>
 
-## Ray Marching powered by Vulkan
+## Map Generator powered by Vulkan
 
-Small minimal demo showcasing ray marching as described by Michael Walczky in his [blog post](https://michaelwalczyk.com/blog-ray-marching.html). Graphics card communication is handled through the [Vulkan API](https://www.vulkan.org/). My [minimal demo of Vulkan](https://github.com/ramon54321/ProjectVulkan) is an example of how Vulkan can be used with [Rust](https://www.rust-lang.org/).
+This project is mainly focused on the learning process of using [Vulkan API](https://www.vulkan.org/) with [Rust](https://www.rust-lang.org/). The goal is to explore techniques of abstracting the raw Vulkan API exposed by [Vulkano](http://vulkano.rs/) through the development of a simple map generator.
 
 ### Installation
 
@@ -15,12 +15,11 @@ Build and run the Vulkan backed window with:
 cargo run
 ```
 
-In a separate terminal run the shader compile watcher with:
+Remember to recompile shaders if changes are made to them.
 
 ```
-./compile_shaders_watch.sh
+./compile_shaders.sh
 ```
 
-This will ensure any changes to `.vert` and `.frag` files will be automatically compiled into Vulkan `.spv` SPIR-V bytecode, which will be read by the main application.
+This will compile `.vert` and `.frag` files into Vulkan `.spv` SPIR-V bytecode, which will be read by the main application.
 
-The application supports live reload of shaders by clicking anywhere in the viewport.
