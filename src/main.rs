@@ -1,3 +1,6 @@
+mod graphics;
+
+use crate::graphics::interface::{create_command_buffers, FixtureCreateInfo, GpuInterface};
 use bytemuck::{Pod, Zeroable};
 use rand::{thread_rng, Rng};
 use vulkano::{
@@ -10,21 +13,16 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
 };
 
-use crate::graphics::{create_command_buffers, FixtureCreateInfo, Vertex};
-
-mod graphics;
-
 fn main() {
     let event_loop = EventLoop::new();
-    let app = graphics::App::new(&event_loop);
+    let gpu_interface = GpuInterface::new(&event_loop);
 
-    let mut previous_frame_end = Some(now(app.device.clone()));
+    let mut previous_frame_end = Some(now(gpu_interface.device.clone()));
     #[repr(C)]
     #[derive(Default, Debug, Copy, Clone, Zeroable, Pod)]
     struct VertexLocal {
         position: [f32; 2],
     }
-    impl Vertex for VertexLocal {}
     impl_vertex!(VertexLocal, position);
     let fixture_create_info = FixtureCreateInfo {
         verticies: vec![
@@ -49,7 +47,7 @@ fn main() {
         ],
     };
     let mut random_range = thread_rng();
-    let mut fixture = app.create_fixture(fixture_create_info.clone());
+    let mut fixture = gpu_interface.create_fixture(fixture_create_info.clone());
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
@@ -80,7 +78,7 @@ fn main() {
                             },
                         ],
                     };
-                    fixture = app.create_fixture(fixture_create_info.clone());
+                    fixture = gpu_interface.create_fixture(fixture_create_info.clone());
                 }
             }
             Event::WindowEvent {
@@ -94,24 +92,31 @@ fn main() {
                     .cleanup_finished();
 
                 let command_buffers = create_command_buffers(
-                    app.device.clone(),
-                    app.queue.clone(),
+                    gpu_interface.device.clone(),
+                    gpu_interface.queue.clone(),
                     &fixture.frame_buffers,
                     fixture.graphics_pipeline.clone(),
                     fixture.vertex_buffer.clone(),
                 );
 
                 let (image_index, _is_acquired_image_suboptimal, acquire_future) =
-                    match acquire_next_image(app.swapchain.clone(), None) {
+                    match acquire_next_image(gpu_interface.swapchain.clone(), None) {
                         Ok(result) => result,
                         Err(e) => panic!("{:?}", e),
                     };
 
-                let execution_future = now(app.device.clone())
+                let execution_future = now(gpu_interface.device.clone())
                     .join(acquire_future)
-                    .then_execute(app.queue.clone(), command_buffers[image_index].clone())
+                    .then_execute(
+                        gpu_interface.queue.clone(),
+                        command_buffers[image_index].clone(),
+                    )
                     .unwrap()
-                    .then_swapchain_present(app.queue.clone(), app.swapchain.clone(), image_index)
+                    .then_swapchain_present(
+                        gpu_interface.queue.clone(),
+                        gpu_interface.swapchain.clone(),
+                        image_index,
+                    )
                     .then_signal_fence_and_flush();
 
                 execution_future
