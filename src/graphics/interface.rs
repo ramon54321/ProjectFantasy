@@ -81,6 +81,41 @@ impl GpuInterface {
             vertex_buffer,
         }
     }
+    pub fn create_command_buffers<V: Vertex>(
+        &self,
+        fixture: &Fixture<V>,
+    ) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
+        fixture
+            .frame_buffers
+            .iter()
+            .map(|framebuffer| {
+                let mut command_buffer_builder = AutoCommandBufferBuilder::primary(
+                    self.device.clone(),
+                    self.queue.family(),
+                    CommandBufferUsage::OneTimeSubmit,
+                )
+                .expect("Could not create command buffer");
+                command_buffer_builder
+                    .begin_render_pass(
+                        framebuffer.clone(),
+                        SubpassContents::Inline,
+                        vec![[1.0, 1.0, 1.0, 1.0].into(), [0.0, 0.0, 0.0, 1.0].into()],
+                    )
+                    .expect("Could not begin render pass")
+                    .bind_pipeline_graphics(fixture.graphics_pipeline.clone())
+                    .bind_vertex_buffers(0, fixture.vertex_buffer.clone())
+                    .draw(6, 1, 0, 0)
+                    .expect("Could not draw")
+                    .end_render_pass()
+                    .expect("Could not end render pass");
+                let command_buffer = command_buffer_builder
+                    .build()
+                    .expect("Could not build command buffer");
+
+                Arc::new(command_buffer)
+            })
+            .collect()
+    }
 }
 
 pub struct Fixture<V: Vertex> {
@@ -282,44 +317,6 @@ fn create_frame_buffers(
                 },
             )
             .expect("Could not create framebuffer")
-        })
-        .collect()
-}
-
-pub fn create_command_buffers<V: Vertex>(
-    device: Arc<Device>,
-    queue: Arc<Queue>,
-    frame_buffers: &Vec<Arc<Framebuffer>>,
-    graphics_pipeline: Arc<GraphicsPipeline>,
-    vertex_buffer: Arc<CpuAccessibleBuffer<[V]>>,
-) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
-    frame_buffers
-        .iter()
-        .map(|framebuffer| {
-            let mut command_buffer_builder = AutoCommandBufferBuilder::primary(
-                device.clone(),
-                queue.family(),
-                CommandBufferUsage::OneTimeSubmit,
-            )
-            .expect("Could not create command buffer");
-            command_buffer_builder
-                .begin_render_pass(
-                    framebuffer.clone(),
-                    SubpassContents::Inline,
-                    vec![[1.0, 1.0, 1.0, 1.0].into(), [0.0, 0.0, 0.0, 1.0].into()],
-                )
-                .expect("Could not begin render pass")
-                .bind_pipeline_graphics(graphics_pipeline.clone())
-                .bind_vertex_buffers(0, vertex_buffer.clone())
-                .draw(6, 1, 0, 0)
-                .expect("Could not draw")
-                .end_render_pass()
-                .expect("Could not end render pass");
-            let command_buffer = command_buffer_builder
-                .build()
-                .expect("Could not build command buffer");
-
-            Arc::new(command_buffer)
         })
         .collect()
 }
