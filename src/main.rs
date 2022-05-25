@@ -3,7 +3,7 @@ mod graphics;
 use crate::graphics::interface::{FixtureCreateInfo, GpuInterface};
 use bytemuck::{Pod, Zeroable};
 use graphics::{interface::Fixture, WindowEventDriven};
-use rand::{thread_rng, Rng};
+use rand::{prelude::ThreadRng, thread_rng, Rng};
 use vulkano::{
     impl_vertex,
     swapchain::acquire_next_image,
@@ -16,105 +16,105 @@ use winit::{
 
 #[repr(C)]
 #[derive(Default, Debug, Copy, Clone, Zeroable, Pod)]
-struct VertexLocal {
+struct CheeseTrianglesVertex {
     position: [f32; 2],
 }
-impl_vertex!(VertexLocal, position);
+impl_vertex!(CheeseTrianglesVertex, position);
 
-struct App {
-    previous_frame_end: Option<NowFuture>,
-    fixture_create_info: Option<FixtureCreateInfo<VertexLocal>>,
-    fixture: Option<Fixture<VertexLocal>>,
+struct CheeseTrianglesFixturePass {
+    fixture: Fixture<CheeseTrianglesVertex>,
+    random_range: ThreadRng,
 }
-impl App {
-    fn new() -> Self {
-        Self {
-            previous_frame_end: None,
-            fixture_create_info: None,
-            fixture: None,
-        }
-    }
-}
-impl WindowEventDriven<()> for App {
-    fn on_start(&mut self, gpu_interface: &GpuInterface) {
-        self.previous_frame_end = Some(now(gpu_interface.device.clone()));
-        self.fixture_create_info = Some(FixtureCreateInfo {
+impl CheeseTrianglesFixturePass {
+    fn new(gpu_interface: &GpuInterface) -> Self {
+        let fixture_create_info = FixtureCreateInfo {
             verticies: vec![
-                VertexLocal {
+                CheeseTrianglesVertex {
                     position: [-1.0, -1.0],
                 },
-                VertexLocal {
+                CheeseTrianglesVertex {
                     position: [-1.0, 1.0],
                 },
-                VertexLocal {
+                CheeseTrianglesVertex {
                     position: [1.0, 1.0],
                 },
-                VertexLocal {
+                CheeseTrianglesVertex {
                     position: [1.0, 1.0],
                 },
-                VertexLocal {
+                CheeseTrianglesVertex {
                     position: [1.0, -1.0],
                 },
-                VertexLocal {
+                CheeseTrianglesVertex {
                     position: [-1.0, -1.0],
                 },
             ],
-        });
-        self.fixture = Some(
-            gpu_interface.create_fixture(
-                self.fixture_create_info
-                    .as_ref()
-                    .expect("Could not get fixture create info")
-                    .clone(),
-            ),
-        );
+        };
+        let fixture = gpu_interface.create_fixture(fixture_create_info);
+        let random_range = thread_rng();
+        CheeseTrianglesFixturePass {
+            fixture,
+            random_range,
+        }
     }
+}
+impl FixturePass for CheeseTrianglesFixturePass {
     fn on_event(
         &mut self,
-        event: Event<()>,
+        event: &Event<()>,
         _control_flow: &mut ControlFlow,
         gpu_interface: &GpuInterface,
     ) {
-        let mut random_range = thread_rng();
         match event {
             Event::WindowEvent {
                 event: WindowEvent::MouseInput { state, button, .. },
                 ..
             } => {
-                if state == ElementState::Pressed && button == MouseButton::Left {
+                if *state == ElementState::Pressed && *button == MouseButton::Left {
                     let fixture_create_info = FixtureCreateInfo {
                         verticies: vec![
-                            VertexLocal {
-                                position: [-random_range.gen::<f32>(), -random_range.gen::<f32>()],
+                            CheeseTrianglesVertex {
+                                position: [
+                                    -self.random_range.gen::<f32>(),
+                                    -self.random_range.gen::<f32>(),
+                                ],
                             },
-                            VertexLocal {
-                                position: [-random_range.gen::<f32>(), random_range.gen::<f32>()],
+                            CheeseTrianglesVertex {
+                                position: [
+                                    -self.random_range.gen::<f32>(),
+                                    self.random_range.gen::<f32>(),
+                                ],
                             },
-                            VertexLocal {
-                                position: [random_range.gen::<f32>(), random_range.gen::<f32>()],
+                            CheeseTrianglesVertex {
+                                position: [
+                                    self.random_range.gen::<f32>(),
+                                    self.random_range.gen::<f32>(),
+                                ],
                             },
-                            VertexLocal {
-                                position: [random_range.gen::<f32>(), random_range.gen::<f32>()],
+                            CheeseTrianglesVertex {
+                                position: [
+                                    self.random_range.gen::<f32>(),
+                                    self.random_range.gen::<f32>(),
+                                ],
                             },
-                            VertexLocal {
-                                position: [random_range.gen::<f32>(), -random_range.gen::<f32>()],
+                            CheeseTrianglesVertex {
+                                position: [
+                                    self.random_range.gen::<f32>(),
+                                    -self.random_range.gen::<f32>(),
+                                ],
                             },
-                            VertexLocal {
-                                position: [-random_range.gen::<f32>(), -random_range.gen::<f32>()],
+                            CheeseTrianglesVertex {
+                                position: [
+                                    -self.random_range.gen::<f32>(),
+                                    -self.random_range.gen::<f32>(),
+                                ],
                             },
                         ],
                     };
-                    self.fixture = Some(gpu_interface.create_fixture(fixture_create_info.clone()));
+                    self.fixture = gpu_interface.create_fixture(fixture_create_info);
                 }
             }
             Event::RedrawEventsCleared => {
-                self.previous_frame_end
-                    .as_mut()
-                    .expect("Could not get previous frame end")
-                    .cleanup_finished();
-
-                let command_buffers = gpu_interface
-                    .create_command_buffers(&self.fixture.as_ref().expect("Could not get fixture"));
+                let command_buffers = gpu_interface.create_command_buffers(&self.fixture);
 
                 let (image_index, _is_acquired_image_suboptimal, acquire_future) =
                     match acquire_next_image(gpu_interface.swapchain.clone(), None) {
@@ -143,6 +143,53 @@ impl WindowEventDriven<()> for App {
             }
             _ => (),
         }
+    }
+}
+
+trait FixturePass {
+    fn on_event(
+        &mut self,
+        event: &Event<()>,
+        _control_flow: &mut ControlFlow,
+        gpu_interface: &GpuInterface,
+    );
+}
+
+struct App {
+    previous_frame_end: Option<NowFuture>,
+    fixture_passes: Vec<Box<dyn FixturePass>>,
+}
+impl App {
+    fn new() -> Self {
+        Self {
+            previous_frame_end: None,
+            fixture_passes: Vec::new(),
+        }
+    }
+}
+impl WindowEventDriven<()> for App {
+    fn on_start(&mut self, gpu_interface: &GpuInterface) {
+        self.previous_frame_end = Some(now(gpu_interface.device.clone()));
+        self.fixture_passes
+            .push(Box::new(CheeseTrianglesFixturePass::new(&gpu_interface)));
+        self.fixture_passes
+            .push(Box::new(CheeseTrianglesFixturePass::new(&gpu_interface)));
+    }
+    fn on_event(
+        &mut self,
+        event: Event<()>,
+        control_flow: &mut ControlFlow,
+        gpu_interface: &GpuInterface,
+    ) {
+        if event == Event::RedrawEventsCleared {
+            self.previous_frame_end
+                .as_mut()
+                .expect("Could not get previous frame end")
+                .cleanup_finished();
+        }
+        self.fixture_passes.iter_mut().for_each(|fixture_pass| {
+            fixture_pass.on_event(&event, control_flow, gpu_interface);
+        });
     }
 }
 
