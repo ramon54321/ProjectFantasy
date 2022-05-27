@@ -1,11 +1,19 @@
 mod graphics;
 
+use std::sync::Arc;
+
 use crate::graphics::interface::{FixtureCreateInfo, GpuInterface};
 use bytemuck::{Pod, Zeroable};
 use graphics::{interface::Fixture, WindowEventDriven};
 use rand::{prelude::ThreadRng, thread_rng, Rng};
 use vulkano::{
+    buffer::CpuAccessibleBuffer,
+    command_buffer::{
+        AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, SubpassContents,
+    },
     impl_vertex,
+    pipeline::{graphics::vertex_input::Vertex, GraphicsPipeline},
+    render_pass::Framebuffer,
     swapchain::acquire_next_image,
     sync::{now, GpuFuture, NowFuture},
 };
@@ -57,6 +65,29 @@ impl CheeseTrianglesFixturePass {
         }
     }
 }
+
+fn add_some_render_commands(
+    command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+    frame_buffer: Arc<Framebuffer>,
+    graphics_pipeline: Arc<GraphicsPipeline>,
+    vertex_buffer: Arc<CpuAccessibleBuffer<[CheeseTrianglesVertex]>>,
+) {
+    command_buffer_builder
+        .begin_render_pass(
+            frame_buffer.clone(),
+            SubpassContents::Inline,
+            vec![[1.0, 1.0, 1.0, 1.0].into(), [0.0, 0.0, 0.0, 1.0].into()],
+        )
+        .expect("Could not begin render pass")
+        .bind_pipeline_graphics(graphics_pipeline.clone())
+        .bind_vertex_buffers(0, vertex_buffer.clone())
+        .draw(6, 1, 0, 0)
+        .expect("Could not draw");
+    command_buffer_builder
+        .end_render_pass()
+        .expect("Could not end render pass");
+}
+
 impl FixturePass for CheeseTrianglesFixturePass {
     fn on_event(
         &mut self,
@@ -114,20 +145,51 @@ impl FixturePass for CheeseTrianglesFixturePass {
                 }
             }
             Event::RedrawEventsCleared => {
-                let command_buffers = gpu_interface.create_command_buffers(&self.fixture);
-
                 let (image_index, _is_acquired_image_suboptimal, acquire_future) =
                     match acquire_next_image(gpu_interface.swapchain.clone(), None) {
                         Ok(result) => result,
                         Err(e) => panic!("{:?}", e),
                     };
 
+                let mut command_buffer_builder = AutoCommandBufferBuilder::primary(
+                    gpu_interface.device.clone(),
+                    gpu_interface.queue.family(),
+                    CommandBufferUsage::OneTimeSubmit,
+                )
+                .expect("Could not create command buffer builder");
+
+                //command_buffer_builder
+                //.begin_render_pass(
+                //self.fixture.frame_buffers[image_index].clone(),
+                //SubpassContents::Inline,
+                //vec![[1.0, 1.0, 1.0, 1.0].into(), [0.0, 0.0, 0.0, 1.0].into()],
+                //)
+                //.expect("Could not begin render pass")
+                //.bind_pipeline_graphics(self.fixture.graphics_pipeline.clone())
+                //.bind_vertex_buffers(0, self.fixture.vertex_buffer.clone())
+                //.draw(6, 1, 0, 0)
+                //.expect("Could not draw");
+                //command_buffer_builder
+                //.end_render_pass()
+                //.expect("Could not end render pass");
+
+                // Can be repeated (the unit of repitition is sort of a render pass with its own
+                // graphics pipeline and vertex buffer and draw call). Only at the end the entire
+                // command buffer is built and submitted, only once per frame.
+                add_some_render_commands(
+                    &mut command_buffer_builder,
+                    self.fixture.frame_buffers[image_index].clone(),
+                    self.fixture.graphics_pipeline.clone(),
+                    self.fixture.vertex_buffer.clone(),
+                );
+
+                let command_buffer = command_buffer_builder
+                    .build()
+                    .expect("Could not build command buffer");
+
                 let execution_future = now(gpu_interface.device.clone())
                     .join(acquire_future)
-                    .then_execute(
-                        gpu_interface.queue.clone(),
-                        command_buffers[image_index].clone(),
-                    )
+                    .then_execute(gpu_interface.queue.clone(), command_buffer)
                     .unwrap()
                     .then_swapchain_present(
                         gpu_interface.queue.clone(),
@@ -172,8 +234,8 @@ impl WindowEventDriven<()> for App {
         self.previous_frame_end = Some(now(gpu_interface.device.clone()));
         self.fixture_passes
             .push(Box::new(CheeseTrianglesFixturePass::new(&gpu_interface)));
-        self.fixture_passes
-            .push(Box::new(CheeseTrianglesFixturePass::new(&gpu_interface)));
+        //self.fixture_passes
+        //.push(Box::new(CheeseTrianglesFixturePass::new(&gpu_interface)));
     }
     fn on_event(
         &mut self,
