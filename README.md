@@ -23,3 +23,8 @@ Remember to recompile shaders if changes are made to them.
 
 This will compile `.vert` and `.frag` files into Vulkan `.spv` SPIR-V bytecode, which will be read by the main application.
 
+### Vulkan Wrapping Architecture
+
+Currently the architecture of the core Vulkan components are layed out as follows:
+
+<img src="https://www.vulkan.org/user/themes/vulkan/images/logo/vulkan-logo.svg" width="800">
