@@ -1,9 +1,6 @@
 use std::{fs::File, io::Read, sync::Arc};
 use vulkano::{
     buffer::{BufferUsage, CpuAccessibleBuffer},
-    command_buffer::{
-        AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, SubpassContents,
-    },
     device::{
         physical::PhysicalDevice, Device, DeviceCreateInfo, DeviceExtensions, Queue,
         QueueCreateInfo,
@@ -50,41 +47,10 @@ impl GpuInterface {
             queue,
         }
     }
-    //pub fn create_command_buffers<V: Vertex>(
-    //&self,
-    //) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
-    //fixture
-    //.frame_buffers
-    //.iter()
-    //.map(|framebuffer| {
-    //let mut command_buffer_builder = AutoCommandBufferBuilder::primary(
-    //self.device.clone(),
-    //self.queue.family(),
-    //CommandBufferUsage::OneTimeSubmit,
-    //)
-    //.expect("Could not create command buffer");
-    //command_buffer_builder
-    //.begin_render_pass(
-    //framebuffer.clone(),
-    //SubpassContents::Inline,
-    //vec![[1.0, 1.0, 1.0, 1.0].into(), [0.0, 0.0, 0.0, 1.0].into()],
-    //)
-    //.expect("Could not begin render pass")
-    //.bind_pipeline_graphics(fixture.graphics_pipeline.clone())
-    //.bind_vertex_buffers(0, fixture.vertex_buffer.clone())
-    //.draw(6, 1, 0, 0)
-    //.expect("Could not draw")
-    //.end_render_pass()
-    //.expect("Could not end render pass");
-    //let command_buffer = command_buffer_builder
-    //.build()
-    //.expect("Could not build command buffer");
-
-    //Arc::new(command_buffer)
-    //})
-    //.collect()
-    //}
 }
+
+#[derive(Clone)]
+pub struct FixtureCreateInfo {}
 
 pub struct Fixture {
     pub render_pass: Arc<RenderPass>,
@@ -94,7 +60,7 @@ pub struct Fixture {
 }
 
 impl Fixture {
-    pub fn new(fixture_create_info: &FixtureCreateInfo, gpu_interface: &GpuInterface) -> Self {
+    pub fn new(_fixture_create_info: &FixtureCreateInfo, gpu_interface: &GpuInterface) -> Self {
         let (swapchain, swapchain_images) = create_swapchain_and_images(
             gpu_interface.device.clone(),
             gpu_interface.surface.clone(),
@@ -116,23 +82,6 @@ impl Fixture {
 }
 
 pub trait Sweep {}
-
-//let vertex_buffer =
-//create_vertex_buffer(self.device.clone(), fixture_create_info.verticies);
-
-//let graphics_pipeline = create_graphics_pipeline::<V>(
-//self.device.clone(),
-//self.swapchain.image_extent(),
-//render_pass.clone(),
-//);
-//
-//pub struct Sweep<V: Vertex> {
-//pub graphics_pipeline: Arc<GraphicsPipeline>,
-//pub vertex_buffer: Arc<CpuAccessibleBuffer<[V]>>,
-//}
-
-#[derive(Clone)]
-pub struct FixtureCreateInfo {}
 
 fn create_instance() -> Arc<Instance> {
     let required_extensions = required_extensions();

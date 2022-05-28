@@ -67,8 +67,8 @@ impl CheeseTrianglesSweep {
         let vertex_buffer = create_vertex_buffer(gpu_interface.device.clone(), verticies);
 
         let mut random_range = thread_rng();
-        for i in 0..offset {
-            let f: f32 = random_range.gen();
+        for _ in 0..offset {
+            let _: f32 = random_range.gen();
         }
         Self {
             graphics_pipeline,
@@ -86,108 +86,64 @@ impl CheeseTrianglesSweep {
             .draw(6, 1, 0, 0)
             .expect("Could not enqueue draw command");
     }
+    fn on_event(
+        &mut self,
+        event: &Event<()>,
+        _control_flow: &mut ControlFlow,
+        gpu_interface: &GpuInterface,
+    ) {
+        match event {
+            Event::WindowEvent {
+                event: WindowEvent::MouseInput { state, button, .. },
+                ..
+            } => {
+                if *state == ElementState::Pressed && *button == MouseButton::Left {
+                    let verticies = vec![
+                        CheeseTrianglesVertex {
+                            position: [
+                                -self.random_range.gen::<f32>(),
+                                -self.random_range.gen::<f32>(),
+                            ],
+                        },
+                        CheeseTrianglesVertex {
+                            position: [
+                                -self.random_range.gen::<f32>(),
+                                self.random_range.gen::<f32>(),
+                            ],
+                        },
+                        CheeseTrianglesVertex {
+                            position: [
+                                self.random_range.gen::<f32>(),
+                                self.random_range.gen::<f32>(),
+                            ],
+                        },
+                        CheeseTrianglesVertex {
+                            position: [
+                                self.random_range.gen::<f32>(),
+                                self.random_range.gen::<f32>(),
+                            ],
+                        },
+                        CheeseTrianglesVertex {
+                            position: [
+                                self.random_range.gen::<f32>(),
+                                -self.random_range.gen::<f32>(),
+                            ],
+                        },
+                        CheeseTrianglesVertex {
+                            position: [
+                                -self.random_range.gen::<f32>(),
+                                -self.random_range.gen::<f32>(),
+                            ],
+                        },
+                    ];
+                    self.vertex_buffer =
+                        create_vertex_buffer(gpu_interface.device.clone(), verticies);
+                }
+            }
+            _ => {}
+        }
+    }
 }
-
-//impl FixturePass for CheeseTrianglesFixturePass {
-//fn on_render(
-//&mut self,
-//_event: &Event<()>,
-//_control_flow: &mut ControlFlow,
-//_gpu_interface: &GpuInterface,
-//command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-//frame_buffer_index: usize,
-//) {
-//command_buffer_builder
-//.begin_render_pass(
-//self.fixture.frame_buffers[frame_buffer_index].clone(),
-//SubpassContents::Inline,
-//vec![[1.0, 1.0, 1.0, 1.0].into(), [0.0, 0.0, 0.0, 1.0].into()],
-//)
-//.expect("Could not begin render pass")
-//.bind_pipeline_graphics(self.fixture.graphics_pipeline.clone())
-//.bind_vertex_buffers(0, self.fixture.vertex_buffer.clone())
-//.draw(6, 1, 0, 0)
-//.expect("Could not draw");
-//command_buffer_builder
-//.end_render_pass()
-//.expect("Could not end render pass");
-//}
-//fn on_event(
-//&mut self,
-//event: &Event<()>,
-//_control_flow: &mut ControlFlow,
-//gpu_interface: &GpuInterface,
-//) {
-//match event {
-//Event::WindowEvent {
-//event: WindowEvent::MouseInput { state, button, .. },
-//..
-//} => {
-//if *state == ElementState::Pressed && *button == MouseButton::Left {
-//let fixture_create_info = FixtureCreateInfo {
-//verticies: vec![
-//CheeseTrianglesVertex {
-//position: [
-//-self.random_range.gen::<f32>(),
-//-self.random_range.gen::<f32>(),
-//],
-//},
-//CheeseTrianglesVertex {
-//position: [
-//-self.random_range.gen::<f32>(),
-//self.random_range.gen::<f32>(),
-//],
-//},
-//CheeseTrianglesVertex {
-//position: [
-//self.random_range.gen::<f32>(),
-//self.random_range.gen::<f32>(),
-//],
-//},
-//CheeseTrianglesVertex {
-//position: [
-//self.random_range.gen::<f32>(),
-//self.random_range.gen::<f32>(),
-//],
-//},
-//CheeseTrianglesVertex {
-//position: [
-//self.random_range.gen::<f32>(),
-//-self.random_range.gen::<f32>(),
-//],
-//},
-//CheeseTrianglesVertex {
-//position: [
-//-self.random_range.gen::<f32>(),
-//-self.random_range.gen::<f32>(),
-//],
-//},
-//],
-//};
-//self.fixture = gpu_interface.create_fixture(fixture_create_info);
-//}
-//}
-//_ => (),
-//}
-//}
-//}
-
-//trait FixturePass {
-//fn on_render(
-//&mut self,
-//event: &Event<()>,
-//control_flow: &mut ControlFlow,
-//gpu_interface: &GpuInterface,
-//command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-//frame_buffer_index: usize,
-//);
-//fn on_event(
-//&mut self,
-//event: &Event<()>,
-//control_flow: &mut ControlFlow,
-//gpu_interface: &GpuInterface,
-//);
-//}
 
 struct App {
     previous_frame_end: Option<NowFuture>,
@@ -212,7 +168,7 @@ impl WindowEventDriven<()> for App {
     fn on_event(
         &mut self,
         event: Event<()>,
-        _control_flow: &mut ControlFlow,
+        control_flow: &mut ControlFlow,
         gpu_interface: &GpuInterface,
     ) {
         if event == Event::RedrawEventsCleared {
@@ -274,6 +230,8 @@ impl WindowEventDriven<()> for App {
                 //self.fixture_passes.iter_mut().for_each(|fixture_pass| {
                 //fixture_pass.on_event(&event, control_flow, gpu_interface.clone());
                 //});
+
+                self.sweep.on_event(&event, control_flow, &gpu_interface);
             }
         };
     }
