@@ -36,8 +36,6 @@ pub struct GpuInterface {
     pub surface: Arc<Surface<Window>>,
     pub device: Arc<Device>,
     pub queue: Arc<Queue>,
-    pub swapchain: Arc<Swapchain<Window>>,
-    pub swapchain_images: Vec<Arc<SwapchainImage<Window>>>,
 }
 
 impl GpuInterface {
@@ -45,90 +43,96 @@ impl GpuInterface {
         let instance = create_instance();
         let surface = create_surface(instance.clone(), event_loop);
         let (device, queue) = create_device_and_queue(instance.clone(), surface.clone());
-        let (swapchain, swapchain_images) =
-            create_swapchain_and_images(device.clone(), surface.clone());
-        GpuInterface {
+        Self {
             instance,
             surface,
             device,
             queue,
+        }
+    }
+    //pub fn create_command_buffers<V: Vertex>(
+    //&self,
+    //) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
+    //fixture
+    //.frame_buffers
+    //.iter()
+    //.map(|framebuffer| {
+    //let mut command_buffer_builder = AutoCommandBufferBuilder::primary(
+    //self.device.clone(),
+    //self.queue.family(),
+    //CommandBufferUsage::OneTimeSubmit,
+    //)
+    //.expect("Could not create command buffer");
+    //command_buffer_builder
+    //.begin_render_pass(
+    //framebuffer.clone(),
+    //SubpassContents::Inline,
+    //vec![[1.0, 1.0, 1.0, 1.0].into(), [0.0, 0.0, 0.0, 1.0].into()],
+    //)
+    //.expect("Could not begin render pass")
+    //.bind_pipeline_graphics(fixture.graphics_pipeline.clone())
+    //.bind_vertex_buffers(0, fixture.vertex_buffer.clone())
+    //.draw(6, 1, 0, 0)
+    //.expect("Could not draw")
+    //.end_render_pass()
+    //.expect("Could not end render pass");
+    //let command_buffer = command_buffer_builder
+    //.build()
+    //.expect("Could not build command buffer");
+
+    //Arc::new(command_buffer)
+    //})
+    //.collect()
+    //}
+}
+
+pub struct Fixture {
+    pub render_pass: Arc<RenderPass>,
+    pub frame_buffers: Vec<Arc<Framebuffer>>,
+    pub swapchain: Arc<Swapchain<Window>>,
+    pub swapchain_images: Vec<Arc<SwapchainImage<Window>>>,
+}
+
+impl Fixture {
+    pub fn new(fixture_create_info: &FixtureCreateInfo, gpu_interface: &GpuInterface) -> Self {
+        let (swapchain, swapchain_images) = create_swapchain_and_images(
+            gpu_interface.device.clone(),
+            gpu_interface.surface.clone(),
+        );
+        let render_pass = create_render_pass(gpu_interface.device.clone());
+        let frame_buffers = create_frame_buffers(
+            gpu_interface.device.clone(),
+            &swapchain_images,
+            render_pass.clone(),
+            swapchain.image_extent(),
+        );
+        Self {
             swapchain,
             swapchain_images,
-        }
-    }
-    pub fn create_fixture<V: Vertex>(
-        &self,
-        fixture_create_info: FixtureCreateInfo<V>,
-    ) -> Fixture<V> {
-        let render_pass = create_render_pass(self.device.clone());
-        let graphics_pipeline = create_graphics_pipeline::<V>(
-            self.device.clone(),
-            self.swapchain.image_extent(),
-            render_pass.clone(),
-        );
-        let frame_buffers = create_frame_buffers(
-            self.device.clone(),
-            &self.swapchain_images,
-            render_pass.clone(),
-            self.swapchain.image_extent(),
-        );
-        let vertex_buffer =
-            create_vertex_buffer(self.device.clone(), fixture_create_info.verticies);
-        Fixture {
             render_pass,
-            graphics_pipeline,
             frame_buffers,
-            vertex_buffer,
         }
     }
-    pub fn create_command_buffers<V: Vertex>(
-        &self,
-        fixture: &Fixture<V>,
-    ) -> Vec<Arc<PrimaryAutoCommandBuffer>> {
-        fixture
-            .frame_buffers
-            .iter()
-            .map(|framebuffer| {
-                let mut command_buffer_builder = AutoCommandBufferBuilder::primary(
-                    self.device.clone(),
-                    self.queue.family(),
-                    CommandBufferUsage::OneTimeSubmit,
-                )
-                .expect("Could not create command buffer");
-                command_buffer_builder
-                    .begin_render_pass(
-                        framebuffer.clone(),
-                        SubpassContents::Inline,
-                        vec![[1.0, 1.0, 1.0, 1.0].into(), [0.0, 0.0, 0.0, 1.0].into()],
-                    )
-                    .expect("Could not begin render pass")
-                    .bind_pipeline_graphics(fixture.graphics_pipeline.clone())
-                    .bind_vertex_buffers(0, fixture.vertex_buffer.clone())
-                    .draw(6, 1, 0, 0)
-                    .expect("Could not draw")
-                    .end_render_pass()
-                    .expect("Could not end render pass");
-                let command_buffer = command_buffer_builder
-                    .build()
-                    .expect("Could not build command buffer");
-
-                Arc::new(command_buffer)
-            })
-            .collect()
-    }
 }
 
-pub struct Fixture<V: Vertex> {
-    pub render_pass: Arc<RenderPass>,
-    pub graphics_pipeline: Arc<GraphicsPipeline>,
-    pub frame_buffers: Vec<Arc<Framebuffer>>,
-    pub vertex_buffer: Arc<CpuAccessibleBuffer<[V]>>,
-}
+pub trait Sweep {}
+
+//let vertex_buffer =
+//create_vertex_buffer(self.device.clone(), fixture_create_info.verticies);
+
+//let graphics_pipeline = create_graphics_pipeline::<V>(
+//self.device.clone(),
+//self.swapchain.image_extent(),
+//render_pass.clone(),
+//);
+//
+//pub struct Sweep<V: Vertex> {
+//pub graphics_pipeline: Arc<GraphicsPipeline>,
+//pub vertex_buffer: Arc<CpuAccessibleBuffer<[V]>>,
+//}
 
 #[derive(Clone)]
-pub struct FixtureCreateInfo<V: Vertex> {
-    pub verticies: Vec<V>,
-}
+pub struct FixtureCreateInfo {}
 
 fn create_instance() -> Arc<Instance> {
     let required_extensions = required_extensions();
@@ -228,7 +232,7 @@ fn create_render_pass(device: Arc<Device>) -> Arc<RenderPass> {
     .expect("Could not create render pass")
 }
 
-fn create_graphics_pipeline<V: Vertex>(
+pub fn create_graphics_pipeline<V: Vertex>(
     device: Arc<Device>,
     swapchain_extent: [u32; 2],
     render_pass: Arc<RenderPass>,
@@ -321,7 +325,7 @@ fn create_frame_buffers(
         .collect()
 }
 
-fn create_vertex_buffer<V: Vertex>(
+pub fn create_vertex_buffer<V: Vertex>(
     device: Arc<Device>,
     verticies: Vec<V>,
 ) -> Arc<CpuAccessibleBuffer<[V]>> {

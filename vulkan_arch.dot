@@ -1,0 +1,32 @@
+digraph Vulkan {
+  bgcolor=transparent;
+
+  subgraph cluster_0 {
+    fontsize = 20;
+    label = "Sweep";
+    
+    GraphicsPipeline -> Shaders;
+  }
+  
+  subgraph cluster_1 {
+    fontsize = 20;
+    label = "Fixture";
+    
+    FrameBuffers -> RenderPass;
+    FrameBuffers -> SwapChain;
+  }
+  
+  subgraph cluster_2 {
+    fontsize = 20;
+    label = "Base";
+    
+    Device -> Instance;
+    Device -> Surface;
+    Queue -> Instance;
+    Queue -> Surface;
+    Surface -> Instance;
+  }
+
+  Surface -> EventLoop;
+}
+
