@@ -38,7 +38,7 @@ struct CheeseTrianglesSweep {
 }
 
 impl CheeseTrianglesSweep {
-    fn new(gpu_interface: &GpuInterface, fixture: &Fixture, offset: usize) -> Self {
+    fn new(gpu_interface: &GpuInterface, fixture: &Fixture) -> Self {
         let graphics_pipeline = create_graphics_pipeline::<CheeseTrianglesVertex>(
             gpu_interface.device.clone(),
             fixture.swapchain.clone().image_extent(),
@@ -65,17 +65,16 @@ impl CheeseTrianglesSweep {
             },
         ];
         let vertex_buffer = create_vertex_buffer(gpu_interface.device.clone(), verticies);
-
-        let mut random_range = thread_rng();
-        for _ in 0..offset {
-            let _: f32 = random_range.gen();
-        }
+        let random_range = thread_rng();
         Self {
             graphics_pipeline,
             vertex_buffer,
             random_range,
         }
     }
+}
+
+impl Sweep for CheeseTrianglesSweep {
     fn render(
         &self,
         command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
@@ -145,19 +144,33 @@ impl CheeseTrianglesSweep {
     }
 }
 
+trait Sweep {
+    fn render(
+        &self,
+        command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+    );
+    fn on_event(
+        &mut self,
+        event: &Event<()>,
+        _control_flow: &mut ControlFlow,
+        gpu_interface: &GpuInterface,
+    );
+}
+
 struct App {
     previous_frame_end: Option<NowFuture>,
     fixture: Fixture,
-    sweep: CheeseTrianglesSweep,
+    sweeps: Vec<Box<dyn Sweep>>,
 }
 impl App {
     fn new(gpu_interface: &GpuInterface) -> Self {
         let fixture = Fixture::new(&FixtureCreateInfo {}, &gpu_interface);
-        let sweep = CheeseTrianglesSweep::new(&gpu_interface, &fixture, 56);
+        let sweep_0 = Box::new(CheeseTrianglesSweep::new(&gpu_interface, &fixture));
+        let sweep_1 = Box::new(CheeseTrianglesSweep::new(&gpu_interface, &fixture));
         Self {
             previous_frame_end: None,
             fixture,
-            sweep,
+            sweeps: vec![sweep_0, sweep_1],
         }
     }
 }
@@ -200,7 +213,9 @@ impl WindowEventDriven<()> for App {
                     )
                     .expect("Could not begin render pass");
 
-                self.sweep.render(&mut command_buffer_builder);
+                self.sweeps
+                    .iter_mut()
+                    .for_each(|sweep| sweep.render(&mut command_buffer_builder));
 
                 command_buffer_builder
                     .end_render_pass()
@@ -227,11 +242,9 @@ impl WindowEventDriven<()> for App {
                     .expect("Execution future could not wait");
             }
             _ => {
-                //self.fixture_passes.iter_mut().for_each(|fixture_pass| {
-                //fixture_pass.on_event(&event, control_flow, gpu_interface.clone());
-                //});
-
-                self.sweep.on_event(&event, control_flow, &gpu_interface);
+                self.sweeps
+                    .iter_mut()
+                    .for_each(|sweep| sweep.on_event(&event, control_flow, &gpu_interface));
             }
         };
     }

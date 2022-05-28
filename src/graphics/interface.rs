@@ -81,8 +81,6 @@ impl Fixture {
     }
 }
 
-pub trait Sweep {}
-
 fn create_instance() -> Arc<Instance> {
     let required_extensions = required_extensions();
     Instance::new(InstanceCreateInfo {
