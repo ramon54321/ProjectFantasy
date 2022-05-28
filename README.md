@@ -28,3 +28,5 @@ This will compile `.vert` and `.frag` files into Vulkan `.spv` SPIR-V bytecode, 
 Currently the architecture of the core Vulkan components are layed out as follows:
 
 <img src="https://github.com/ramon54321/ProjectFantasy/blob/main/docs/vulkan_arch.png?raw=true" width="800">
+
+The diagram shows the dependencies between the components. The arrows can be read as "is dependent on". For example `Device` is dependent on `Surface`. In addition, the macro components `Base`, `Fixture` and `Sweep` also have dependencies amongst one another. `Sweep` is dependent on `Fixture`, which is itself dependent on `Base`. If any component within a macro component changes or gets updated, all macro components which depend on it needs to be rebuilt. For example, if the `SwapChain` is rebuilt, for example due to a window resize, the `Fixture` and all `Sweeps` dependent on said `Fixture`, need to be rebuilt on the new `Fixture`
