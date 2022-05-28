@@ -27,4 +27,4 @@ This will compile `.vert` and `.frag` files into Vulkan `.spv` SPIR-V bytecode, 
 
 Currently the architecture of the core Vulkan components are layed out as follows:
 
-<img src="https://www.vulkan.org/user/themes/vulkan/images/logo/vulkan-logo.svg" width="800">
+<img src="https://github.com/ramon54321/ProjectFantasy/blob/main/docs/vulkan_arch.png?raw=true" width="800">
