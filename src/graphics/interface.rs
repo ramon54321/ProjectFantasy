@@ -28,6 +28,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
+#[derive(Clone)]
 pub struct GpuInterface {
     pub instance: Arc<Instance>,
     pub surface: Arc<Surface<Window>>,
@@ -50,17 +51,17 @@ impl GpuInterface {
 }
 
 #[derive(Clone)]
-pub struct FixtureCreateInfo {}
+pub struct GpuFixtureCreateInfo {}
 
-pub struct Fixture {
+pub struct GpuFixture {
     pub render_pass: Arc<RenderPass>,
     pub frame_buffers: Vec<Arc<Framebuffer>>,
     pub swapchain: Arc<Swapchain<Window>>,
     pub swapchain_images: Vec<Arc<SwapchainImage<Window>>>,
 }
 
-impl Fixture {
-    pub fn new(_fixture_create_info: &FixtureCreateInfo, gpu_interface: &GpuInterface) -> Self {
+impl GpuFixture {
+    pub fn new(_fixture_create_info: &GpuFixtureCreateInfo, gpu_interface: &GpuInterface) -> Self {
         let (swapchain, swapchain_images) = create_swapchain_and_images(
             gpu_interface.device.clone(),
             gpu_interface.surface.clone(),

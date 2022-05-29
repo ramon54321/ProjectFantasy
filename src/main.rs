@@ -2,22 +2,18 @@ mod graphics;
 
 use std::sync::Arc;
 
-use crate::graphics::interface::{FixtureCreateInfo, GpuInterface};
+use crate::graphics::interface::{GpuFixtureCreateInfo, GpuInterface};
 use bytemuck::{Pod, Zeroable};
 use graphics::{
-    interface::{create_graphics_pipeline, create_vertex_buffer, Fixture},
-    WindowEventDriven,
+    interface::{create_graphics_pipeline, create_vertex_buffer, GpuFixture},
+    GpuApp, Sweep, WindowEventDriven,
 };
 use rand::{prelude::ThreadRng, thread_rng, Rng};
 use vulkano::{
     buffer::CpuAccessibleBuffer,
-    command_buffer::{
-        AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, SubpassContents,
-    },
+    command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer},
     impl_vertex,
     pipeline::GraphicsPipeline,
-    swapchain::acquire_next_image,
-    sync::{now, GpuFuture, NowFuture},
 };
 use winit::{
     event::{ElementState, Event, MouseButton, WindowEvent},
@@ -38,7 +34,7 @@ struct CheeseTrianglesSweep {
 }
 
 impl CheeseTrianglesSweep {
-    fn new(gpu_interface: &GpuInterface, fixture: &Fixture) -> Self {
+    fn new(gpu_interface: &GpuInterface, fixture: &GpuFixture) -> Self {
         let graphics_pipeline = create_graphics_pipeline::<CheeseTrianglesVertex>(
             gpu_interface.device.clone(),
             fixture.swapchain.clone().image_extent(),
@@ -144,118 +140,22 @@ impl Sweep for CheeseTrianglesSweep {
     }
 }
 
-trait Sweep {
-    fn render(
-        &self,
-        command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-    );
-    fn on_event(
-        &mut self,
-        event: &Event<()>,
-        _control_flow: &mut ControlFlow,
-        gpu_interface: &GpuInterface,
-    );
-}
-
-struct App {
-    previous_frame_end: Option<NowFuture>,
-    fixture: Fixture,
-    sweeps: Vec<Box<dyn Sweep>>,
-}
-impl App {
-    fn new(gpu_interface: &GpuInterface) -> Self {
-        let fixture = Fixture::new(&FixtureCreateInfo {}, &gpu_interface);
-        let sweep_0 = Box::new(CheeseTrianglesSweep::new(&gpu_interface, &fixture));
-        let sweep_1 = Box::new(CheeseTrianglesSweep::new(&gpu_interface, &fixture));
-        Self {
-            previous_frame_end: None,
-            fixture,
-            sweeps: vec![sweep_0, sweep_1],
-        }
-    }
-}
-impl WindowEventDriven<()> for App {
-    fn on_start(&mut self, gpu_interface: &GpuInterface) {
-        self.previous_frame_end = Some(now(gpu_interface.device.clone()));
-    }
-    fn on_event(
-        &mut self,
-        event: Event<()>,
-        control_flow: &mut ControlFlow,
-        gpu_interface: &GpuInterface,
-    ) {
-        if event == Event::RedrawEventsCleared {
-            self.previous_frame_end
-                .as_mut()
-                .expect("Could not get previous frame end")
-                .cleanup_finished();
-        }
-        match event {
-            Event::RedrawEventsCleared => {
-                let (frame_buffer_image_index, _is_acquired_image_suboptimal, acquire_future) =
-                    match acquire_next_image(self.fixture.swapchain.clone(), None) {
-                        Ok(result) => result,
-                        Err(e) => panic!("{:?}", e),
-                    };
-
-                let mut command_buffer_builder = AutoCommandBufferBuilder::primary(
-                    gpu_interface.device.clone(),
-                    gpu_interface.queue.family(),
-                    CommandBufferUsage::OneTimeSubmit,
-                )
-                .expect("Could not create command buffer builder");
-
-                command_buffer_builder
-                    .begin_render_pass(
-                        self.fixture.frame_buffers[frame_buffer_image_index].clone(),
-                        SubpassContents::Inline,
-                        vec![[1.0, 1.0, 1.0, 1.0].into(), [0.0, 0.0, 0.0, 1.0].into()],
-                    )
-                    .expect("Could not begin render pass");
-
-                self.sweeps
-                    .iter_mut()
-                    .for_each(|sweep| sweep.render(&mut command_buffer_builder));
-
-                command_buffer_builder
-                    .end_render_pass()
-                    .expect("Could not end render pass");
-
-                let command_buffer = command_buffer_builder
-                    .build()
-                    .expect("Could not build command buffer");
-
-                let execution_future = now(gpu_interface.device.clone())
-                    .join(acquire_future)
-                    .then_execute(gpu_interface.queue.clone(), command_buffer)
-                    .unwrap()
-                    .then_swapchain_present(
-                        gpu_interface.queue.clone(),
-                        self.fixture.swapchain.clone(),
-                        frame_buffer_image_index,
-                    )
-                    .then_signal_fence_and_flush();
-
-                execution_future
-                    .expect("Execution future was not present")
-                    .wait(None)
-                    .expect("Execution future could not wait");
-            }
-            _ => {
-                self.sweeps
-                    .iter_mut()
-                    .for_each(|sweep| sweep.on_event(&event, control_flow, &gpu_interface));
-            }
-        };
-    }
+fn create_sweeps(gpu_interface: &GpuInterface, gpu_fixture: &GpuFixture) -> Vec<Box<dyn Sweep>> {
+    let sweep_0 = Box::new(CheeseTrianglesSweep::new(&gpu_interface, &gpu_fixture));
+    let sweep_1 = Box::new(CheeseTrianglesSweep::new(&gpu_interface, &gpu_fixture));
+    vec![sweep_0, sweep_1]
 }
 
 fn main() {
     let event_loop = EventLoop::new();
     let gpu_interface = GpuInterface::new(&event_loop);
-    let mut app = App::new(&gpu_interface);
+    let mut gpu_app = GpuApp::new(gpu_interface.clone(), create_sweeps);
 
-    app.on_start(&gpu_interface);
+    let gpu_fixture = GpuFixture::new(&GpuFixtureCreateInfo {}, &gpu_interface);
+
+    gpu_app.set_fixture(gpu_fixture);
+
+    gpu_app.on_start(&gpu_interface);
     event_loop.run(move |event, _window_target, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
@@ -265,6 +165,6 @@ fn main() {
             } => *control_flow = ControlFlow::Exit,
             _ => (),
         };
-        app.on_event(event, control_flow, &gpu_interface);
+        gpu_app.on_event(event, control_flow, &gpu_interface);
     });
 }
