@@ -28,61 +28,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-#[derive(Clone)]
-pub struct GpuInterface {
-    pub instance: Arc<Instance>,
-    pub surface: Arc<Surface<Window>>,
-    pub device: Arc<Device>,
-    pub queue: Arc<Queue>,
-}
-
-impl GpuInterface {
-    pub fn new(event_loop: &EventLoop<()>) -> Self {
-        let instance = create_instance();
-        let surface = create_surface(instance.clone(), event_loop);
-        let (device, queue) = create_device_and_queue(instance.clone(), surface.clone());
-        Self {
-            instance,
-            surface,
-            device,
-            queue,
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct GpuFixtureCreateInfo {}
-
-pub struct GpuFixture {
-    pub render_pass: Arc<RenderPass>,
-    pub frame_buffers: Vec<Arc<Framebuffer>>,
-    pub swapchain: Arc<Swapchain<Window>>,
-    pub swapchain_images: Vec<Arc<SwapchainImage<Window>>>,
-}
-
-impl GpuFixture {
-    pub fn new(_fixture_create_info: &GpuFixtureCreateInfo, gpu_interface: &GpuInterface) -> Self {
-        let (swapchain, swapchain_images) = create_swapchain_and_images(
-            gpu_interface.device.clone(),
-            gpu_interface.surface.clone(),
-        );
-        let render_pass = create_render_pass(gpu_interface.device.clone());
-        let frame_buffers = create_frame_buffers(
-            gpu_interface.device.clone(),
-            &swapchain_images,
-            render_pass.clone(),
-            swapchain.image_extent(),
-        );
-        Self {
-            swapchain,
-            swapchain_images,
-            render_pass,
-            frame_buffers,
-        }
-    }
-}
-
-fn create_instance() -> Arc<Instance> {
+pub fn create_instance() -> Arc<Instance> {
     let required_extensions = required_extensions();
     Instance::new(InstanceCreateInfo {
         enabled_extensions: required_extensions,
@@ -91,7 +37,7 @@ fn create_instance() -> Arc<Instance> {
     .expect("Could not create instance")
 }
 
-fn create_surface(instance: Arc<Instance>, event_loop: &EventLoop<()>) -> Arc<Surface<Window>> {
+pub fn create_surface(instance: Arc<Instance>, event_loop: &EventLoop<()>) -> Arc<Surface<Window>> {
     WindowBuilder::new()
         .with_title("My Vulkan Window")
         .with_inner_size(LogicalSize::new(1280, 720))
@@ -99,7 +45,7 @@ fn create_surface(instance: Arc<Instance>, event_loop: &EventLoop<()>) -> Arc<Su
         .expect("Unable to create window")
 }
 
-fn create_device_and_queue(
+pub fn create_device_and_queue(
     instance: Arc<Instance>,
     surface: Arc<Surface<Window>>,
 ) -> (Arc<Device>, Arc<Queue>) {
@@ -138,7 +84,7 @@ fn create_device_and_queue(
     (device, queue)
 }
 
-fn create_swapchain_and_images(
+pub fn create_swapchain_and_images(
     device: Arc<Device>,
     surface: Arc<Surface<Window>>,
 ) -> (Arc<Swapchain<Window>>, Vec<Arc<SwapchainImage<Window>>>) {
@@ -155,7 +101,7 @@ fn create_swapchain_and_images(
     (swapchain, images)
 }
 
-fn create_render_pass(device: Arc<Device>) -> Arc<RenderPass> {
+pub fn create_render_pass(device: Arc<Device>) -> Arc<RenderPass> {
     single_pass_renderpass!(device,
                             attachments: {
                                 color: {
@@ -241,7 +187,7 @@ pub fn create_graphics_pipeline<V: Vertex>(
         .expect("Could not build graphics pipeline")
 }
 
-fn create_frame_buffers(
+pub fn create_frame_buffers(
     device: Arc<Device>,
     swapchain_images: &Vec<Arc<SwapchainImage<Window>>>,
     render_pass: Arc<RenderPass>,

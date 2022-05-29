@@ -1,24 +1,81 @@
+use std::sync::Arc;
+
 use vulkano::{
     command_buffer::{
         AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, SubpassContents,
     },
-    swapchain::acquire_next_image,
+    device::{Device, Queue},
+    image::SwapchainImage,
+    instance::Instance,
+    render_pass::{Framebuffer, RenderPass},
+    swapchain::{acquire_next_image, Surface, Swapchain},
     sync::{now, GpuFuture, NowFuture},
 };
-use winit::{event::Event, event_loop::ControlFlow};
+use winit::{
+    event::Event,
+    event_loop::{ControlFlow, EventLoop},
+    window::Window,
+};
 
-use self::interface::{GpuFixture, GpuInterface};
+use self::interface::{
+    create_device_and_queue, create_frame_buffers, create_instance, create_render_pass,
+    create_surface, create_swapchain_and_images,
+};
 
 pub mod interface;
 
-pub trait WindowEventDriven<E> {
-    fn on_start(&mut self, gpu_interface: &GpuInterface);
-    fn on_event(
-        &mut self,
-        event: Event<E>,
-        control_flow: &mut ControlFlow,
-        gpu_interface: &GpuInterface,
-    );
+#[derive(Clone)]
+pub struct GpuInterface {
+    pub instance: Arc<Instance>,
+    pub surface: Arc<Surface<Window>>,
+    pub device: Arc<Device>,
+    pub queue: Arc<Queue>,
+}
+
+impl GpuInterface {
+    pub fn new(event_loop: &EventLoop<()>) -> Self {
+        let instance = create_instance();
+        let surface = create_surface(instance.clone(), event_loop);
+        let (device, queue) = create_device_and_queue(instance.clone(), surface.clone());
+        Self {
+            instance,
+            surface,
+            device,
+            queue,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct GpuFixtureCreateInfo {}
+
+pub struct GpuFixture {
+    pub render_pass: Arc<RenderPass>,
+    pub frame_buffers: Vec<Arc<Framebuffer>>,
+    pub swapchain: Arc<Swapchain<Window>>,
+    pub swapchain_images: Vec<Arc<SwapchainImage<Window>>>,
+}
+
+impl GpuFixture {
+    pub fn new(_fixture_create_info: &GpuFixtureCreateInfo, gpu_interface: &GpuInterface) -> Self {
+        let (swapchain, swapchain_images) = create_swapchain_and_images(
+            gpu_interface.device.clone(),
+            gpu_interface.surface.clone(),
+        );
+        let render_pass = create_render_pass(gpu_interface.device.clone());
+        let frame_buffers = create_frame_buffers(
+            gpu_interface.device.clone(),
+            &swapchain_images,
+            render_pass.clone(),
+            swapchain.image_extent(),
+        );
+        Self {
+            swapchain,
+            swapchain_images,
+            render_pass,
+            frame_buffers,
+        }
+    }
 }
 
 pub trait Sweep {
@@ -58,12 +115,10 @@ impl GpuApp {
         self.sweeps = (self.create_sweeps)(&self.gpu_interface, &gpu_fixture);
         self.gpu_fixture = Some(gpu_fixture);
     }
-}
-impl WindowEventDriven<()> for GpuApp {
-    fn on_start(&mut self, gpu_interface: &GpuInterface) {
+    pub fn on_start(&mut self, gpu_interface: &GpuInterface) {
         self.previous_frame_end = Some(now(gpu_interface.device.clone()));
     }
-    fn on_event(
+    pub fn on_event(
         &mut self,
         event: Event<()>,
         control_flow: &mut ControlFlow,

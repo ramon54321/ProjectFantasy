@@ -2,11 +2,10 @@ mod graphics;
 
 use std::sync::Arc;
 
-use crate::graphics::interface::{GpuFixtureCreateInfo, GpuInterface};
 use bytemuck::{Pod, Zeroable};
 use graphics::{
-    interface::{create_graphics_pipeline, create_vertex_buffer, GpuFixture},
-    GpuApp, Sweep, WindowEventDriven,
+    interface::{create_graphics_pipeline, create_vertex_buffer},
+    GpuApp, GpuFixture, GpuFixtureCreateInfo, GpuInterface, Sweep,
 };
 use rand::{prelude::ThreadRng, thread_rng, Rng};
 use vulkano::{
