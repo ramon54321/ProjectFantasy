@@ -1,6 +1,5 @@
 use std::{fs::File, io::Read, sync::Arc};
 use vulkano::{
-    buffer::{BufferUsage, CpuAccessibleBuffer},
     device::{
         physical::PhysicalDevice, Device, DeviceCreateInfo, DeviceExtensions, Queue,
         QueueCreateInfo,
@@ -217,12 +216,4 @@ pub fn create_frame_buffers(
             .expect("Could not create framebuffer")
         })
         .collect()
-}
-
-pub fn create_vertex_buffer<V: Vertex>(
-    device: Arc<Device>,
-    verticies: Vec<V>,
-) -> Arc<CpuAccessibleBuffer<[V]>> {
-    CpuAccessibleBuffer::from_iter(device, BufferUsage::vertex_buffer(), false, verticies)
-        .expect("Could not create vertex buffer")
 }

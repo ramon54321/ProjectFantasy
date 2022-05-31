@@ -4,12 +4,12 @@ use std::sync::Arc;
 
 use bytemuck::{Pod, Zeroable};
 use graphics::{
-    interface::{create_graphics_pipeline, create_vertex_buffer},
-    GpuApp, GpuFixture, GpuFixtureCreateInfo, GpuInterface, Sweep,
+    interface::create_graphics_pipeline, GpuApp, GpuFixture, GpuFixtureCreateInfo, GpuInterface,
+    Sweep,
 };
 use rand::{prelude::ThreadRng, thread_rng, Rng};
 use vulkano::{
-    buffer::CpuAccessibleBuffer,
+    buffer::{BufferUsage, CpuAccessibleBuffer},
     command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer},
     impl_vertex,
     pipeline::GraphicsPipeline,
@@ -59,7 +59,13 @@ impl CheeseTrianglesSweep {
                 position: [-1.0, -1.0],
             },
         ];
-        let vertex_buffer = create_vertex_buffer(gpu_interface.device.clone(), verticies);
+        let vertex_buffer = CpuAccessibleBuffer::from_iter(
+            gpu_interface.device.clone(),
+            BufferUsage::vertex_buffer(),
+            false,
+            verticies,
+        )
+        .expect("Could not create vertex buffer");
         let random_range = thread_rng();
         Self {
             graphics_pipeline,
@@ -130,8 +136,13 @@ impl Sweep for CheeseTrianglesSweep {
                             ],
                         },
                     ];
-                    self.vertex_buffer =
-                        create_vertex_buffer(gpu_interface.device.clone(), verticies);
+                    self.vertex_buffer = CpuAccessibleBuffer::from_iter(
+                        gpu_interface.device.clone(),
+                        BufferUsage::vertex_buffer(),
+                        false,
+                        verticies,
+                    )
+                    .expect("Could not create vertex buffer");
                 }
             }
             _ => {}
@@ -141,8 +152,7 @@ impl Sweep for CheeseTrianglesSweep {
 
 fn create_sweeps(gpu_interface: &GpuInterface, gpu_fixture: &GpuFixture) -> Vec<Box<dyn Sweep>> {
     let sweep_0 = Box::new(CheeseTrianglesSweep::new(&gpu_interface, &gpu_fixture));
-    let sweep_1 = Box::new(CheeseTrianglesSweep::new(&gpu_interface, &gpu_fixture));
-    vec![sweep_0, sweep_1]
+    vec![sweep_0]
 }
 
 fn main() {
