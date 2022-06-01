@@ -76,8 +76,8 @@ impl CheeseTrianglesSweep {
 }
 
 impl Sweep for CheeseTrianglesSweep {
-    fn render(
-        &self,
+    fn on_build(
+        &mut self,
         command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     ) {
         command_buffer_builder

@@ -79,8 +79,8 @@ impl GpuFixture {
 }
 
 pub trait Sweep {
-    fn render(
-        &self,
+    fn on_build(
+        &mut self,
         command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     );
     fn on_event(
@@ -163,7 +163,7 @@ impl GpuApp {
 
                 self.sweeps
                     .iter_mut()
-                    .for_each(|sweep| sweep.render(&mut command_buffer_builder));
+                    .for_each(|sweep| sweep.on_build(&mut command_buffer_builder));
 
                 command_buffer_builder
                     .end_render_pass()
