@@ -129,27 +129,19 @@ pub fn create_graphics_pipeline<V: Vertex>(
     device: Arc<Device>,
     swapchain_extent: [u32; 2],
     render_pass: Arc<RenderPass>,
+    vertex_shader_file_path: &str,
+    fragment_shader_file_path: &str,
 ) -> Arc<GraphicsPipeline> {
-    mod vertex_shader {
-        vulkano_shaders::shader! {
-            ty: "vertex",
-            src: "
-                #version 450
-
-                layout(location = 0) in vec2 position;
-                layout(location = 0) out vec2 f_position;
-
-                void main() {
-                    f_position = vec2(position.x, -position.y);
-                    gl_Position = vec4(position, 0.0, 1.0);
-                }
-                    "
-        }
-    }
+    let mut vertex_shader_bytes = Vec::new();
+    File::open(format!("{}.vert.spv", vertex_shader_file_path))
+        .expect("Could not find vertex shader spv file")
+        .read_to_end(&mut vertex_shader_bytes)
+        .expect("Could not read vertex shader spv file");
     let vertex_shader_module =
-        vertex_shader::load(device.clone()).expect("Could not load vertex shader");
+        unsafe { ShaderModule::from_bytes(device.clone(), &vertex_shader_bytes[..]) }
+            .expect("Could not load vertex shader module");
     let mut fragment_shader_bytes = Vec::new();
-    File::open("data/frag.spv")
+    File::open(format!("{}.frag.spv", fragment_shader_file_path))
         .expect("Could not find fragment shader spv file")
         .read_to_end(&mut fragment_shader_bytes)
         .expect("Could not read fragment shader spv file");
@@ -163,7 +155,8 @@ pub fn create_graphics_pipeline<V: Vertex>(
     };
     let pipeline_builder = GraphicsPipeline::start()
         .vertex_input_state(BuffersDefinition::new().vertex::<V>())
-        .input_assembly_state(InputAssemblyState::default())
+        //.input_assembly_state(InputAssemblyState::default())
+        .input_assembly_state(InputAssemblyState::new())
         .vertex_shader(
             vertex_shader_module
                 .entry_point("main")
