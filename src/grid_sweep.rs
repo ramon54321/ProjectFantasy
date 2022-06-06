@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use crate::graphics::{interface::create_graphics_pipeline, GpuFixture, GpuInterface, Sweep};
 use bytemuck::{Pod, Zeroable};
-use glam::Mat4;
+use glam::{Mat4, Vec3};
 use vulkano::{
-    buffer::{BufferUsage, CpuAccessibleBuffer},
+    buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer},
     command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer},
     descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet},
     impl_vertex,
@@ -25,6 +25,7 @@ impl_vertex!(GridVertex, position);
 #[repr(C)]
 #[derive(Default, Clone, Copy, Zeroable, Pod)]
 struct MVP {
+    view: [f32; 16],
     projection: [f32; 16],
 }
 impl MVP {
@@ -39,7 +40,9 @@ impl MVP {
             0.1,
             100.0,
         );
+        let view = Mat4::from_translation(Vec3::new(5.0, 2.0, 0.0));
         Self {
+            view: view.to_cols_array(),
             projection: projection.to_cols_array(),
         }
     }
@@ -78,26 +81,32 @@ impl GridSweep {
             [WriteDescriptorSet::buffer(0, uniform_buffer)],
         )
         .expect("Could not create descriptor set");
-        let verticies = vec![
-            GridVertex {
-                position: [-0.5, -0.5],
-            },
-            GridVertex {
-                position: [-0.5, 0.5],
-            },
-            GridVertex {
-                position: [0.5, 0.5],
-            },
-            GridVertex {
-                position: [0.5, 0.5],
-            },
-            GridVertex {
-                position: [0.5, -0.5],
-            },
-            GridVertex {
-                position: [-0.5, -0.5],
-            },
-        ];
+        let verticies: Vec<GridVertex> = (0..4)
+            .flat_map(move |x| {
+                (0..4).flat_map(move |y| {
+                    vec![
+                        GridVertex {
+                            position: [-0.5 + x as f32, -0.5 + y as f32],
+                        },
+                        GridVertex {
+                            position: [-0.5 + x as f32, 0.5 + y as f32],
+                        },
+                        GridVertex {
+                            position: [0.5 + x as f32, 0.5 + y as f32],
+                        },
+                        GridVertex {
+                            position: [0.5 + x as f32, 0.5 + y as f32],
+                        },
+                        GridVertex {
+                            position: [0.5 + x as f32, -0.5 + y as f32],
+                        },
+                        GridVertex {
+                            position: [-0.5 + x as f32, -0.5 + y as f32],
+                        },
+                    ]
+                })
+            })
+            .collect();
         let vertex_buffer = CpuAccessibleBuffer::from_iter(
             gpu_interface.device.clone(),
             BufferUsage::vertex_buffer(),
@@ -127,7 +136,7 @@ impl Sweep for GridSweep {
                 0,
                 self.descriptor_set.clone(),
             )
-            .draw(6, 1, 0, 0)
+            .draw((self.vertex_buffer.size() / 8) as u32, 1, 0, 0)
             .expect("Could not enqueue draw command");
     }
     fn on_event(
