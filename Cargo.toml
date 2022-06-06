@@ -13,4 +13,5 @@ vulkano-shaders = "0.29.0"
 bytemuck = "1.9.1"
 winit = "0.26.1"
 glam = "0.20.5"
+image = "0.24.2"
 
