@@ -1,6 +1,3 @@
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::thread;
-
 use image::{
     imageops::{self, resize},
     io::Reader,
@@ -13,11 +10,10 @@ use noise::{
 };
 
 pub const TILING: f64 = 8.0;
-pub const WIDTH: usize = 1024;
-pub const HEIGHT: usize = 1024;
+pub const WIDTH: usize = 512;
+pub const HEIGHT: usize = 512;
 
 fn new_data_grid<T: Clone>(initial_value: T) -> Vec<Vec<T>> {
-    println!("Creating new data grid");
     vec![vec![initial_value; HEIGHT]; WIDTH]
 }
 
@@ -51,10 +47,10 @@ fn max_in(collection: &Vec<Vec<f64>>) -> f64 {
     max_value
 }
 
-fn remap_data_grid(collection: &mut Vec<Vec<f64>>, min: f64, max: f64) {
+fn remap_collection(collection: &mut Vec<Vec<f64>>, min: f64, max: f64) {
     let min_value = min_in(&collection);
     let max_value = max_in(&collection);
-    println!("Remapping: {} - {}", min_value, max_value);
+    println!("{} - {}", min_value, max_value);
     for x in 0..WIDTH {
         for y in 0..HEIGHT {
             let current_value = collection[x][y];
@@ -69,93 +65,19 @@ fn get_noise<F: NoiseFn<[f64; 2]>>(
     skew: f64,
     stretch: f64,
 ) -> Vec<Vec<f64>> {
-    println!("Getting noise data grid");
-    //let mut values = Arc::new(new_data_grid(0.0));
-    //println!("Start");
-
-    //let perlin = Perlin::new();
-
-    //let mut handles = Vec::new();
-
-    //for i in 0..8 {
-    //let values = values.clone();
-    //let x_start = (WIDTH / 8) * i;
-    //let x_end = (WIDTH / 8) * i + 1;
-    //let handle = thread::spawn(move || unsafe {
-    //for x in x_start..x_end {
-    //for y in 0..HEIGHT {
-    //let x = x as f64;
-    //let y = y as f64;
-    //let regional_value = perlin.get([
-    //(x * TILING * frequency + skew * y) / WIDTH as f64,
-    //(y * TILING * frequency / stretch) / HEIGHT as f64,
-    //]);
-    //values[x as usize][y as usize] = regional_value;
-    //}
-    //}
-    //});
-    //handles.push(handle);
-    //}
-    //for handle in handles {
-    //handle.join().unwrap();
-    //}
-
-    //println!("Done");
-    //*values
-
-    //let thread_handle = thread::spawn(|| {
-    //for x in 0..WIDTH {
-    //for y in 0..HEIGHT {
-    //let x = x as f64;
-    //let y = y as f64;
-    //let regional_value = perlin.get([
-    //(x * TILING * frequency + skew * y) / WIDTH as f64,
-    //(y * TILING * frequency / stretch) / HEIGHT as f64,
-    //]);
-    //values[x as usize][y as usize] = regional_value;
-    //}
-    //}
-    //});
-
-    //let input = Arc::new([1u32, 2, 3, 4]);
-    //let output = Arc::new([0; 4]);
-
-    //let mut handles = Vec::new();
-
-    //for t in 0..4 {
-    //let inp = input.clone();
-    //let out = output.clone();
-    //let handle = thread::spawn(move || unsafe {
-    //let p = (out.as_ptr() as *mut u32).offset(t as isize);
-
-    //*p = inp[t] + (t as u32 + 1);
-    //});
-
-    //handles.push(handle);
-    //}
-
-    //for h in handles {
-    //h.join().unwrap();
-    //}
-
-    //println!("{:?}", output);
-
-    //println!("Start");
-    //for x in 0..WIDTH {
-    //for y in 0..HEIGHT {
-    //let x = x as f64;
-    //let y = y as f64;
-    //let regional_value = func.get([
-    //(x * TILING * frequency + skew * y) / WIDTH as f64,
-    //(y * TILING * frequency / stretch) / HEIGHT as f64,
-    //]);
-    //values[x as usize][y as usize] = regional_value;
-    //}
-    //}
-    //println!("Done");
-    //values
-
-    new_data_grid(0.0)
+    let mut values = new_data_grid(0.0);
+    for x in 0..WIDTH {
+        for y in 0..HEIGHT {
+            let x = x as f64;
+            let y = y as f64;
+            let regional_value = func.get([
+                (x * TILING * frequency + skew * y) / WIDTH as f64,
+                (y * TILING * frequency / stretch) / HEIGHT as f64,
+            ]);
+            values[x as usize][y as usize] = regional_value;
+        }
+    }
+    values
 }
 
 pub struct World {
@@ -213,30 +135,28 @@ impl DataGrid {
         }
         self.values[x][y] = value;
     }
-    pub fn blend_mut<F: Fn(f64, f64) -> f64>(
-        &mut self,
+    pub fn blend(
+        &self,
         other: &DataGrid,
-        offset_x: isize,
-        offset_y: isize,
-        blend_func: F,
-    ) {
-        println!("Blending");
+        offset_x: usize,
+        offset_y: usize,
+        blend_func: fn(f64, f64) -> f64,
+    ) -> Self {
+        let mut new_data_grid = self.clone();
         for x in 0..other.width {
             for y in 0..other.height {
                 let top = other.get(x, y).unwrap();
-                let x = x as isize + offset_x;
-                let y = y as isize + offset_y;
-                if x < 0 || y < 0 {
-                    continue;
-                }
-                let bottom = self.get(x as usize, y as usize);
+                let x = x + offset_x;
+                let y = y + offset_y;
+                let bottom = self.get(x, y);
                 if bottom.is_none() {
                     continue;
                 }
                 let new = blend_func(bottom.unwrap(), top);
-                self.set(x as usize, y as usize, new);
+                new_data_grid.set(x, y, new);
             }
         }
+        new_data_grid
     }
 }
 
@@ -248,30 +168,27 @@ impl Clone for DataGrid {
 
 fn generate_layer_0() -> DataGrid {
     let perlin = Perlin::new().set_seed(1);
-
     let mut global_1_values = get_noise(perlin, 0.2, 0.0, 1.0);
+    remap_collection(&mut global_1_values, 0.0, 1.0);
     let mut regional_1_values = get_noise(perlin, 0.45, 2.0, 1.0);
+    remap_collection(&mut regional_1_values, 0.0, 0.25);
     let mut regional_2_values = get_noise(perlin, 0.45, -0.5, 3.5);
+    remap_collection(&mut regional_2_values, 0.0, 0.25);
     let mut perlin_1_values = get_noise(perlin, 1.0, 0.0, 1.0);
+    remap_collection(&mut perlin_1_values, 0.0, 0.5);
     let mut perlin_2_values = get_noise(perlin, 2.0, 0.0, 1.0);
+    remap_collection(&mut perlin_2_values, 0.0, 0.25);
     let mut perlin_3_values = get_noise(perlin, 4.0, 0.0, 1.0);
+    remap_collection(&mut perlin_3_values, 0.0, 0.125);
     let mut perlin_4_values = get_noise(perlin, 8.0, 0.0, 1.0);
+    remap_collection(&mut perlin_4_values, 0.0, 0.0625);
     let mut perlin_5_values = get_noise(perlin, 16.0, 0.0, 1.0);
+    remap_collection(&mut perlin_5_values, 0.0, 0.03);
     let mut perlin_6_values = get_noise(perlin, 24.0, 0.0, 1.0);
+    remap_collection(&mut perlin_6_values, 0.0, 0.015);
     let mut perlin_mask_values = get_noise(perlin, 0.3, 6.0, 2.0);
+    remap_collection(&mut perlin_mask_values, 0.3, 1.0);
     let mut perlin_values = new_data_grid(0.0);
-
-    remap_data_grid(&mut global_1_values, 0.0, 1.0);
-    remap_data_grid(&mut regional_1_values, 0.0, 0.25);
-    remap_data_grid(&mut regional_2_values, 0.0, 0.25);
-    remap_data_grid(&mut perlin_1_values, 0.0, 0.5);
-    remap_data_grid(&mut perlin_2_values, 0.0, 0.25);
-    remap_data_grid(&mut perlin_3_values, 0.0, 0.125);
-    remap_data_grid(&mut perlin_4_values, 0.0, 0.0625);
-    remap_data_grid(&mut perlin_5_values, 0.0, 0.03);
-    remap_data_grid(&mut perlin_6_values, 0.0, 0.015);
-    remap_data_grid(&mut perlin_mask_values, 0.3, 1.0);
-
     for x in 0..WIDTH {
         for y in 0..HEIGHT {
             let perlin_value = (perlin_1_values[x][y]
@@ -284,7 +201,7 @@ fn generate_layer_0() -> DataGrid {
             perlin_values[x][y] = perlin_value;
         }
     }
-    remap_data_grid(&mut perlin_values, 0.0, 0.15);
+    remap_collection(&mut perlin_values, 0.0, 0.15);
     let mut output_values = new_data_grid(0.0);
     for x in 0..WIDTH {
         for y in 0..HEIGHT {
@@ -294,13 +211,13 @@ fn generate_layer_0() -> DataGrid {
             output_values[x][y] = output_value;
         }
     }
-    remap_data_grid(&mut output_values, 0.0, 1.0);
+    remap_collection(&mut output_values, 0.0, 1.0);
     for x in 0..WIDTH {
         for y in 0..HEIGHT {
             output_values[x][y] = smoothstep(0.35, 0.65, output_values[x][y]);
         }
     }
-    remap_data_grid(&mut output_values, 0.25, 0.75);
+    remap_collection(&mut output_values, 0.25, 0.75);
     DataGrid::from_values(WIDTH, HEIGHT, &output_values)
 }
 
@@ -323,11 +240,10 @@ impl World {
 
         let mut layer_1 = generate_layer_0();
         for i in 0..5 {
-            let crater_size = (32.0 + random.gen::<f64>() * 128.0) as u32;
             let crater = resize(
                 &crater,
-                crater_size,
-                crater_size,
+                (64.0 * (i as f64 / 3.0)) as u32,
+                (64.0 * (i as f64 / 3.0)) as u32,
                 imageops::FilterType::CatmullRom,
             );
             let crater = imageproc::geometric_transformations::rotate_about_center(
@@ -337,14 +253,24 @@ impl World {
                 image::Luma([128]),
             );
             let crater = DataGrid::from_image(&crater);
-            let offset_x = -(crater.width as isize) + (random.gen::<f64>() * WIDTH as f64) as isize;
-            let offset_y =
-                -(crater.height as isize) + (random.gen::<f64>() * HEIGHT as f64) as isize;
-            let crater_dim = 1.0 + random.gen::<f64>() * 4.0;
-            layer_1.blend_mut(&crater, offset_x, offset_y, |a, b| {
-                blend_overlay(a, ((b - 0.5) / crater_dim) + 0.5)
-            });
+            let offset_x = -crater.width + random.gen::<f64>() * WIDTH as usize;
+            let offset_y = -crater.height + random.gen::<f64>() * HEIGHT as usize;
+            layer_1 = layer_1.blend(&crater, , 0, blend_overlay);
         }
+
+        //let crater = resize(&crater, 128, 128, imageops::FilterType::CatmullRom);
+        //let crater = imageproc::geometric_transformations::rotate_about_center(
+        //&crater,
+        //1.8,
+        //imageproc::geometric_transformations::Interpolation::Bicubic,
+        //image::Luma([128]),
+        //);
+
+        //let crater = DataGrid::from_image(&crater);
+
+        //let layer_0 = generate_layer_0().blend(&crater, 100, 110, |a, b| {
+        //blend_overlay(a, ((b - 0.5) / 1.0) + 0.5)
+        //});
 
         for x in 0..WIDTH {
             for y in 0..HEIGHT {

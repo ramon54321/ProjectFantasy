@@ -5,7 +5,7 @@ mod world;
 use fast_poisson::Poisson2D;
 use graphics::{GpuApp, GpuFixture, GpuFixtureCreateInfo, GpuInterface, Sweep};
 use grid_sweep::GridSweep;
-use image::{ImageBuffer, Pixel, RgbImage};
+use image::{ImageBuffer, Pixel, Rgb, RgbImage};
 use line_drawing::{Bresenham, Point};
 use spade::{DelaunayTriangulation, Point2, Triangulation};
 use winit::{
@@ -32,12 +32,14 @@ fn main() {
     let mut image: RgbImage = ImageBuffer::new(WIDTH as u32, HEIGHT as u32);
     for x in 0..WIDTH {
         for y in 0..HEIGHT {
-            let height = world.heights[x][y];
-            image.put_pixel(
-                x as u32,
-                y as u32,
-                Pixel::from_channels(height as u8, height as u8, height as u8, 255),
-            );
+            let height = world.heights.get(x, y).unwrap();
+            //let pixel: Rgb<u8> = match height {
+            //h if h < 0.4 => Pixel::from_channels(77, 156, 218, 255),
+            //_ => Pixel::from_channels(119, 250, 106, 255),
+            //};
+            let value = (height * 255.0) as u8;
+            let pixel = Pixel::from_channels(value, value, value, 255);
+            image.put_pixel(x as u32, y as u32, pixel);
         }
     }
 
