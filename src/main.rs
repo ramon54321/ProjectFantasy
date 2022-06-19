@@ -26,22 +26,22 @@ fn draw_line(image: &mut RgbImage, a: Point<i32>, b: Point<i32>) {
 }
 
 fn main() {
-    let mut world = World::new();
-    world.generate();
+    //let mut world = World::new();
+    //world.generate();
 
-    let mut image: RgbImage = ImageBuffer::new(WIDTH as u32, HEIGHT as u32);
-    for x in 0..WIDTH {
-        for y in 0..HEIGHT {
-            let height = world.heights.get(x, y).unwrap();
-            //let pixel: Rgb<u8> = match height {
-            //h if h < 0.4 => Pixel::from_channels(77, 156, 218, 255),
-            //_ => Pixel::from_channels(119, 250, 106, 255),
-            //};
-            let value = (height * 255.0) as u8;
-            let pixel = Pixel::from_channels(value, value, value, 255);
-            image.put_pixel(x as u32, y as u32, pixel);
-        }
-    }
+    //let mut image: RgbImage = ImageBuffer::new(WIDTH as u32, HEIGHT as u32);
+    //for x in 0..WIDTH {
+    //for y in 0..HEIGHT {
+    //let height = world.heights.get(x, y).unwrap();
+    ////let pixel: Rgb<u8> = match height {
+    ////h if h < 0.4 => Pixel::from_channels(77, 156, 218, 255),
+    ////_ => Pixel::from_channels(119, 250, 106, 255),
+    ////};
+    //let value = (height * 255.0) as u8;
+    //let pixel = Pixel::from_channels(value, value, value, 255);
+    //image.put_pixel(x as u32, y as u32, pixel);
+    //}
+    //}
 
     //let points: Vec<[f64; 2]> = Poisson2D::new()
     //.with_dimensions([WIDTH as f64, HEIGHT as f64], 35.0)
@@ -99,26 +99,26 @@ fn main() {
     //);
     //}
 
-    image.save("world.png").unwrap();
+    //image.save("world.png").unwrap();
 
-    //let event_loop = EventLoop::new();
-    //let gpu_interface = GpuInterface::new(&event_loop);
-    //let mut gpu_app = GpuApp::new(gpu_interface.clone(), create_sweeps);
+    let event_loop = EventLoop::new();
+    let gpu_interface = GpuInterface::new(&event_loop);
+    let mut gpu_app = GpuApp::new(gpu_interface.clone(), create_sweeps);
 
-    //let gpu_fixture = GpuFixture::new(&GpuFixtureCreateInfo {}, &gpu_interface);
+    let gpu_fixture = GpuFixture::new(&GpuFixtureCreateInfo {}, &gpu_interface);
 
-    //gpu_app.set_fixture(gpu_fixture);
+    gpu_app.set_fixture(gpu_fixture);
 
-    //gpu_app.on_start(&gpu_interface);
-    //event_loop.run(move |event, _window_target, control_flow| {
-    //*control_flow = ControlFlow::Poll;
-    //match event {
-    //Event::WindowEvent {
-    //event: WindowEvent::CloseRequested,
-    //..
-    //} => *control_flow = ControlFlow::Exit,
-    //_ => (),
-    //};
-    //gpu_app.on_event(event, control_flow, &gpu_interface);
-    //});
+    gpu_app.on_start(&gpu_interface);
+    event_loop.run(move |event, _window_target, control_flow| {
+        *control_flow = ControlFlow::Poll;
+        match event {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => *control_flow = ControlFlow::Exit,
+            _ => (),
+        };
+        gpu_app.on_event(event, control_flow, &gpu_interface);
+    });
 }

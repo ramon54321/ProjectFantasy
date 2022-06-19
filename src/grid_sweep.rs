@@ -1,14 +1,19 @@
-use std::sync::Arc;
-
 use crate::graphics::{interface::create_graphics_pipeline, GpuFixture, GpuInterface, Sweep};
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
+use image::{io::Reader, Rgba};
+use imageproc::map::map_colors_mut;
+use std::sync::Arc;
 use vulkano::{
-    buffer::{BufferAccess, BufferUsage, CpuAccessibleBuffer},
+    buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess},
     command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer},
     descriptor_set::{PersistentDescriptorSet, WriteDescriptorSet},
+    format::Format,
+    image::{view::ImageView, ImageDimensions, ImmutableImage, MipmapsCount},
     impl_vertex,
     pipeline::{GraphicsPipeline, Pipeline, PipelineBindPoint},
+    sampler::{Filter, Sampler, SamplerCreateInfo},
+    sync::GpuFuture,
 };
 use winit::{
     event::{Event, WindowEvent},
@@ -19,8 +24,9 @@ use winit::{
 #[derive(Default, Debug, Copy, Clone, Zeroable, Pod)]
 struct GridVertex {
     position: [f32; 2],
+    texture_coordinates: [f32; 2],
 }
-impl_vertex!(GridVertex, position);
+impl_vertex!(GridVertex, position, texture_coordinates);
 
 #[repr(C)]
 #[derive(Default, Clone, Copy, Zeroable, Pod)]
@@ -51,7 +57,8 @@ impl MVP {
 pub struct GridSweep {
     graphics_pipeline: Arc<GraphicsPipeline>,
     vertex_buffer: Arc<CpuAccessibleBuffer<[GridVertex]>>,
-    descriptor_set: Arc<PersistentDescriptorSet>,
+    mvp_descriptor_set: Arc<PersistentDescriptorSet>,
+    sampler_descriptor_set: Arc<PersistentDescriptorSet>,
 }
 
 impl GridSweep {
@@ -71,7 +78,7 @@ impl GridSweep {
             mvp_uniform,
         )
         .expect("Could not create uniform buffer");
-        let descriptor_set = PersistentDescriptorSet::new(
+        let mvp_descriptor_set = PersistentDescriptorSet::new(
             graphics_pipeline
                 .layout()
                 .set_layouts()
@@ -80,28 +87,83 @@ impl GridSweep {
                 .clone(),
             [WriteDescriptorSet::buffer(0, uniform_buffer)],
         )
-        .expect("Could not create descriptor set");
+        .expect("Could not create mvp descriptor set");
+        let mut texture_dynamic_image = Reader::open("resources/texture.png")
+            .expect("Could not read texture file")
+            .decode()
+            .expect("Could not decode texture");
+        map_colors_mut(&mut texture_dynamic_image, |p| {
+            let r = (f64::powf((p[0] as f64) / 256.0, 1.0 / 2.2) * 256.0) as u8;
+            let g = (f64::powf((p[1] as f64) / 256.0, 1.0 / 2.2) * 256.0) as u8;
+            let b = (f64::powf((p[2] as f64) / 256.0, 1.0 / 2.2) * 256.0) as u8;
+            let a = (f64::powf((p[3] as f64) / 256.0, 1.0 / 2.2) * 256.0) as u8;
+            Rgba([r, g, b, a])
+        });
+        let texture_bytes = texture_dynamic_image.to_rgba8().to_vec();
+        let (texture_image, image_future) = ImmutableImage::from_iter(
+            texture_bytes,
+            ImageDimensions::Dim2d {
+                width: 512,
+                height: 512,
+                array_layers: 1,
+            },
+            MipmapsCount::One,
+            Format::R8G8B8A8_SRGB,
+            gpu_interface.queue.clone(),
+        )
+        .expect("Could not create immutable image");
+        let texture_image_view =
+            ImageView::new_default(texture_image).expect("Could not create image view for texture");
+        let sampler = Sampler::new(
+            gpu_interface.device.clone(),
+            SamplerCreateInfo {
+                mag_filter: Filter::Nearest,
+                min_filter: Filter::Nearest,
+                ..Default::default()
+            },
+        )
+        .expect("Could not create sampler");
+        let sampler_descriptor_set = PersistentDescriptorSet::new(
+            graphics_pipeline
+                .layout()
+                .set_layouts()
+                .get(1)
+                .expect("Could not get pipeline descriptor set 1")
+                .clone(),
+            [WriteDescriptorSet::image_view_sampler(
+                0,
+                texture_image_view.clone(),
+                sampler.clone(),
+            )],
+        )
+        .expect("Could not create mvp descriptor set");
         let verticies: Vec<GridVertex> = (0..4)
             .flat_map(move |x| {
                 (0..4).flat_map(move |y| {
                     vec![
                         GridVertex {
                             position: [-0.5 + x as f32, -0.5 + y as f32],
+                            texture_coordinates: [0.0, 0.0],
                         },
                         GridVertex {
                             position: [-0.5 + x as f32, 0.5 + y as f32],
+                            texture_coordinates: [0.0, 1.0],
                         },
                         GridVertex {
                             position: [0.5 + x as f32, 0.5 + y as f32],
+                            texture_coordinates: [1.0, 1.0],
                         },
                         GridVertex {
                             position: [0.5 + x as f32, 0.5 + y as f32],
+                            texture_coordinates: [1.0, 1.0],
                         },
                         GridVertex {
                             position: [0.5 + x as f32, -0.5 + y as f32],
+                            texture_coordinates: [1.0, 0.0],
                         },
                         GridVertex {
                             position: [-0.5 + x as f32, -0.5 + y as f32],
+                            texture_coordinates: [0.0, 0.0],
                         },
                     ]
                 })
@@ -117,7 +179,8 @@ impl GridSweep {
         Self {
             graphics_pipeline,
             vertex_buffer,
-            descriptor_set,
+            mvp_descriptor_set,
+            sampler_descriptor_set,
         }
     }
 }
@@ -134,9 +197,12 @@ impl Sweep for GridSweep {
                 PipelineBindPoint::Graphics,
                 self.graphics_pipeline.layout().clone(),
                 0,
-                self.descriptor_set.clone(),
+                vec![
+                    self.mvp_descriptor_set.clone(),
+                    self.sampler_descriptor_set.clone(),
+                ],
             )
-            .draw((self.vertex_buffer.size() / 8) as u32, 1, 0, 0)
+            .draw(self.vertex_buffer.len() as u32, 1, 0, 0)
             .expect("Could not enqueue draw command");
     }
     fn on_event(
