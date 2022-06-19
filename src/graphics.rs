@@ -1,11 +1,14 @@
 use std::sync::Arc;
 
+use image::{io::Reader, Rgba};
+use imageproc::map::map_colors_mut;
 use vulkano::{
     command_buffer::{
         AutoCommandBufferBuilder, CommandBufferUsage, PrimaryAutoCommandBuffer, SubpassContents,
     },
     device::{Device, Queue},
-    image::SwapchainImage,
+    format::Format,
+    image::{ImageDimensions, ImmutableImage, MipmapsCount, SwapchainImage},
     instance::Instance,
     render_pass::{Framebuffer, RenderPass},
     swapchain::{acquire_next_image, Surface, Swapchain},
@@ -196,4 +199,32 @@ impl GpuApp {
             }
         };
     }
+}
+
+pub fn open_texture(queue: Arc<Queue>, path: &str) -> Arc<ImmutableImage> {
+    let mut texture_dynamic_image = Reader::open(path)
+        .expect("Could not read texture file")
+        .decode()
+        .expect("Could not decode texture");
+    map_colors_mut(&mut texture_dynamic_image, |p| {
+        let r = (f64::powf((p[0] as f64) / 256.0, 1.0 / 2.4) * 256.0) as u8;
+        let g = (f64::powf((p[1] as f64) / 256.0, 1.0 / 2.4) * 256.0) as u8;
+        let b = (f64::powf((p[2] as f64) / 256.0, 1.0 / 2.4) * 256.0) as u8;
+        let a = (f64::powf((p[3] as f64) / 256.0, 1.0 / 2.4) * 256.0) as u8;
+        Rgba([r, g, b, a])
+    });
+    let texture_bytes = texture_dynamic_image.to_rgba8().to_vec();
+    let (texture_image, image_future) = ImmutableImage::from_iter(
+        texture_bytes,
+        ImageDimensions::Dim2d {
+            width: texture_dynamic_image.width(),
+            height: texture_dynamic_image.height(),
+            array_layers: 1,
+        },
+        MipmapsCount::One,
+        Format::R8G8B8A8_SRGB,
+        queue.clone(),
+    )
+    .expect("Could not create immutable image");
+    texture_image
 }

@@ -170,6 +170,7 @@ pub fn create_graphics_pipeline<V: Vertex>(
             (),
         )
         .viewport_state(ViewportState::viewport_fixed_scissor_irrelevant([viewport]))
+        .blend_alpha_blending()
         .render_pass(
             Subpass::from(render_pass.clone(), 0)
                 .expect("Could not create subpass from render pass"),
