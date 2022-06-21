@@ -94,8 +94,8 @@ impl GridSweep {
         let sampler = Sampler::new(
             gpu_interface.device.clone(),
             SamplerCreateInfo {
-                mag_filter: Filter::Linear,
-                min_filter: Filter::Linear,
+                mag_filter: Filter::Nearest,
+                min_filter: Filter::Nearest,
                 ..Default::default()
             },
         )
@@ -116,11 +116,14 @@ impl GridSweep {
         .expect("Could not create mvp descriptor set");
         let i = Vec2::new(0.5, 0.25);
         let j = Vec2::new(-0.5, 0.25);
-        let grid_size = 6;
+        let k = Vec2::new(0.0, 1.0);
+        let grid_size = 4;
         let verticies: Vec<GridVertex> = (-grid_size..grid_size)
             .flat_map(move |x| {
                 (-grid_size..grid_size).flat_map(move |y| {
-                    let center = i * (x as f32) + j * (y as f32);
+                    let z = (y as f32) / 5.0;
+                    let z = 0.0;
+                    let center = i * (x as f32) + j * (y as f32) + k * (z as f32);
                     vec![
                         GridVertex {
                             position: [-0.5 + center.x, -0.5 + center.y],
