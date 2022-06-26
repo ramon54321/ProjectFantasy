@@ -3,7 +3,7 @@ use crate::graphics::{
 };
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec2, Vec3};
-use std::sync::Arc;
+use std::{sync::Arc, time::SystemTime};
 use vulkano::{
     buffer::{BufferUsage, CpuAccessibleBuffer, TypedBufferAccess},
     command_buffer::{AutoCommandBufferBuilder, PrimaryAutoCommandBuffer},
@@ -53,11 +53,19 @@ impl MVP {
     }
 }
 
+#[repr(C)]
+#[derive(Default, Clone, Copy, Zeroable, Pod)]
+struct StorageData {
+    frame: u32,
+}
+
 pub struct GridSweep {
     graphics_pipeline: Arc<GraphicsPipeline>,
     vertex_buffer: Arc<CpuAccessibleBuffer<[GridVertex]>>,
     mvp_descriptor_set: Arc<PersistentDescriptorSet>,
     sampler_descriptor_set: Arc<PersistentDescriptorSet>,
+    storage_buffer: Arc<CpuAccessibleBuffer<[StorageData]>>,
+    storage_descriptor_set: Arc<PersistentDescriptorSet>,
 }
 
 impl GridSweep {
@@ -82,11 +90,11 @@ impl GridSweep {
                 .layout()
                 .set_layouts()
                 .get(0)
-                .expect("Could not get pipeline descriptor set 0")
+                .expect("could not get pipeline descriptor set 0")
                 .clone(),
-            [WriteDescriptorSet::buffer(0, uniform_buffer)],
+            [WriteDescriptorSet::buffer(0, uniform_buffer.clone())],
         )
-        .expect("Could not create mvp descriptor set");
+        .expect("could not create mvp descriptor set");
         let texture_image =
             open_texture(gpu_interface.queue.clone(), "resources/texture_isocube.png");
         let texture_image_view =
@@ -114,6 +122,23 @@ impl GridSweep {
             )],
         )
         .expect("Could not create mvp descriptor set");
+        let storage_buffer = CpuAccessibleBuffer::from_iter(
+            gpu_interface.device.clone(),
+            BufferUsage::storage_buffer(),
+            false,
+            [StorageData::default(); 500],
+        )
+        .expect("Could not create storage buffer");
+        let storage_descriptor_set = PersistentDescriptorSet::new(
+            graphics_pipeline
+                .layout()
+                .set_layouts()
+                .get(2)
+                .expect("could not get pipeline descriptor set 2")
+                .clone(),
+            [WriteDescriptorSet::buffer(0, storage_buffer.clone())],
+        )
+        .expect("could not create storage descriptor set");
         let i = Vec2::new(0.5, 0.25);
         let j = Vec2::new(-0.5, 0.25);
         let k = Vec2::new(0.0, 1.0);
@@ -165,6 +190,8 @@ impl GridSweep {
             vertex_buffer,
             mvp_descriptor_set,
             sampler_descriptor_set,
+            storage_buffer,
+            storage_descriptor_set,
         }
     }
 }
@@ -174,6 +201,15 @@ impl Sweep for GridSweep {
         &mut self,
         command_buffer_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     ) {
+        {
+            let mut lock = self.storage_buffer.write().expect("Could not lock buffer");
+            lock[7].frame = (SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("Could not get system time")
+                .as_secs()
+                * 3
+                % 10) as u32;
+        }
         command_buffer_builder
             .bind_pipeline_graphics(self.graphics_pipeline.clone())
             .bind_vertex_buffers(0, self.vertex_buffer.clone())
@@ -184,6 +220,7 @@ impl Sweep for GridSweep {
                 vec![
                     self.mvp_descriptor_set.clone(),
                     self.sampler_descriptor_set.clone(),
+                    self.storage_descriptor_set.clone(),
                 ],
             )
             .draw(self.vertex_buffer.len() as u32, 1, 0, 0)
