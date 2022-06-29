@@ -10,9 +10,10 @@ use vulkano::{
     format::Format,
     image::{ImageDimensions, ImmutableImage, MipmapsCount, SwapchainImage},
     instance::Instance,
+    query::{QueryPool, QueryPoolCreateInfo, QueryResultFlags, QueryType},
     render_pass::{Framebuffer, RenderPass},
     swapchain::{acquire_next_image, Surface, Swapchain},
-    sync::{now, GpuFuture, NowFuture},
+    sync::{now, GpuFuture, NowFuture, PipelineStage},
 };
 use winit::{
     event::Event,
@@ -95,6 +96,7 @@ pub trait Sweep {
 }
 
 pub struct GpuApp {
+    query_pool: Arc<QueryPool>,
     gpu_interface: GpuInterface,
     gpu_fixture: Option<GpuFixture>,
     sweeps: Vec<Box<dyn Sweep>>,
@@ -106,7 +108,14 @@ impl GpuApp {
         gpu_interface: GpuInterface,
         create_sweeps: fn(&GpuInterface, &GpuFixture) -> Vec<Box<dyn Sweep>>,
     ) -> Self {
+        let query_pool_create_info = QueryPoolCreateInfo {
+            query_count: 2,
+            ..QueryPoolCreateInfo::query_type(QueryType::Timestamp)
+        };
+        let query_pool = QueryPool::new(gpu_interface.device.clone(), query_pool_create_info)
+            .expect("Could not create query pool");
         Self {
+            query_pool,
             gpu_interface,
             gpu_fixture: None,
             sweeps: Vec::new(),
@@ -155,22 +164,33 @@ impl GpuApp {
                 )
                 .expect("Could not create command buffer builder");
 
-                command_buffer_builder
-                    .begin_render_pass(
-                        self.gpu_fixture.as_ref().unwrap().frame_buffers[frame_buffer_image_index]
-                            .clone(),
-                        SubpassContents::Inline,
-                        vec![[1.0, 1.0, 1.0, 1.0].into(), [0.0, 0.0, 0.0, 1.0].into()],
-                    )
-                    .expect("Could not begin render pass");
+                unsafe {
+                    command_buffer_builder
+                        .reset_query_pool(self.query_pool.clone(), 0..2)
+                        .expect("Could not reset query pool")
+                        .write_timestamp(self.query_pool.clone(), 0, PipelineStage::TopOfPipe)
+                        .expect("Could not write timestamp")
+                        .begin_render_pass(
+                            self.gpu_fixture.as_ref().unwrap().frame_buffers
+                                [frame_buffer_image_index]
+                                .clone(),
+                            SubpassContents::Inline,
+                            vec![[1.0, 1.0, 1.0, 1.0].into(), [0.0, 0.0, 0.0, 1.0].into()],
+                        )
+                        .expect("Could not begin render pass");
+                }
 
                 self.sweeps
                     .iter_mut()
                     .for_each(|sweep| sweep.on_build(&mut command_buffer_builder));
 
-                command_buffer_builder
-                    .end_render_pass()
-                    .expect("Could not end render pass");
+                unsafe {
+                    command_buffer_builder
+                        .end_render_pass()
+                        .expect("Could not end render pass")
+                        .write_timestamp(self.query_pool.clone(), 1, PipelineStage::BottomOfPipe)
+                        .expect("Could not write_timestamp");
+                }
 
                 let command_buffer = command_buffer_builder
                     .build()
@@ -191,6 +211,16 @@ impl GpuApp {
                     .expect("Execution future was not present")
                     .wait(None)
                     .expect("Execution future could not wait");
+
+                let mut query_results = [0u64; 2];
+                self.query_pool
+                    .queries_range(0..2)
+                    .expect("Could not get query range")
+                    .get_results(&mut query_results, QueryResultFlags::default())
+                    .expect("Could not get query results");
+                let frames_per_second =
+                    1.0 / ((query_results[1] - query_results[0]) as f64 / 1000000000.0);
+                println!("FPS: {}", frames_per_second);
             }
             _ => {
                 self.sweeps
